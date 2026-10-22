@@ -1,0 +1,63 @@
+name: livekit-local
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.10
+    command: [--config, /etc/livekit.yaml]
+    network_mode: host
+    volumes:
+      - ./runtime/livekit.yaml:/etc/livekit.yaml:ro
+    restart: unless-stopped
+    logging: *logging
+
+  agent:
+    image: livekit-local-agent:1.0.0
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    network_mode: host
+    env_file: .env
+    environment:
+      PYTHONUNBUFFERED: '1'
+      OMP_NUM_THREADS: '1'
+    depends_on:
+      livekit:
+        condition: service_started
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 10m
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/', timeout=3).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+    logging: *logging
+
+  web:
+    image: livekit-local-web:1.0.0
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    network_mode: host
+    environment:
+      LIVEKIT_URL: ws://127.0.0.1:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?請先執行 python3 scripts/setup.py}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?請先執行 python3 scripts/setup.py}
+      PYTHONUNBUFFERED: '1'
+    depends_on:
+      agent:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    logging: *logging
