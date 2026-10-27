@@ -1,3 +1,5 @@
+This is originally tested on PC4090
+
 | 檔案／目錄 | 用途 |
 |---|---|
 | compose.yaml | 管理 LiveKit Server、Agent、網頁三個容器 |
